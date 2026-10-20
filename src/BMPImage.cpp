@@ -1,4 +1,4 @@
-#include "BMPImage.h"
+#include "include/BMPImage.h"
 
 #include <array>
 #include <cstring>
@@ -213,4 +213,119 @@ bool BMPImage::Load(const std::string& filename) {
     pixels_ = std::move(loaded_pixels);
 
     return true;
+}
+
+bool BMPImage::Save(const std::string& filename) const {
+    if (width_ <= 0 ||
+        height_ <= 0 ||
+        bits_per_pixel_ != kBitsPerPixel) {
+        return false;
+    }
+
+    const std::uint64_t width =
+        static_cast<std::uint64_t>(width_);
+
+    const std::uint64_t height =
+        static_cast<std::uint64_t>(height_);
+
+    const std::uint64_t raw_row_size = width * 3;
+
+    const std::uint64_t row_size =
+        (raw_row_size + 3) & ~std::uint64_t{3};
+
+    if (height >
+        std::numeric_limits<std::uint64_t>::max() / row_size) {
+        return false;
+    }
+
+    const std::uint64_t pixel_data_size = row_size * height;
+
+    // Полный размер BMP должен помещаться в 32-битное поле заголовка.
+    if (pixel_data_size >
+        std::numeric_limits<std::uint32_t>::max() - kHeaderSize) {
+        return false;
+    }
+
+    const std::uint64_t expected_pixel_count = width * height;
+
+    if (expected_pixel_count != pixels_.size() ||
+        !FitsStreamSize(row_size)) {
+        return false;
+    }
+
+    const std::uint32_t file_size =
+        static_cast<std::uint32_t>(kHeaderSize + pixel_data_size);
+
+    std::array<std::uint8_t, kHeaderSize> header{};
+
+    // Заголовок файла BMP.
+    header[0] = 'B';
+    header[1] = 'M';
+
+    WriteUint32(header.data() + 2, file_size);
+    WriteUint32(header.data() + 10,
+                static_cast<std::uint32_t>(kHeaderSize));
+
+    // Информационный заголовок BITMAPINFOHEADER.
+    WriteUint32(header.data() + 14,
+                static_cast<std::uint32_t>(kInfoHeaderSize));
+
+    WriteInt32(header.data() + 18, width_);
+    WriteInt32(header.data() + 22, height_);
+
+    WriteUint16(header.data() + 26, 1);
+    WriteUint16(header.data() + 28, kBitsPerPixel);
+    WriteUint32(header.data() + 30, kCompressionRgb);
+    WriteUint32(header.data() + 34,
+                static_cast<std::uint32_t>(pixel_data_size));
+
+    std::ofstream file(filename, std::ios::binary);
+
+    if (!file.is_open()) {
+        return false;
+    }
+
+    file.write(
+        reinterpret_cast<const char*>(header.data()),
+        static_cast<std::streamsize>(header.size())
+    );
+
+    if (!file) {
+        return false;
+    }
+
+    // Нулевые значения используются для padding.
+    std::vector<std::uint8_t> row(
+        static_cast<std::size_t>(row_size), 0
+    );
+
+    for (std::uint64_t y = 0; y < height; ++y) {
+        // Записываем строки снизу вверх.
+        const std::uint64_t source_y = height - 1 - y;
+
+        for (std::uint64_t x = 0; x < width; ++x) {
+            const std::size_t source_index =
+                static_cast<std::size_t>(source_y * width + x);
+
+            const std::size_t destination_index =
+                static_cast<std::size_t>(x * 3);
+
+            const Pixel& pixel = pixels_[source_index];
+
+            row[destination_index] = pixel.blue;
+            row[destination_index + 1] = pixel.green;
+            row[destination_index + 2] = pixel.red;
+        }
+
+        file.write(
+            reinterpret_cast<const char*>(row.data()),
+            static_cast<std::streamsize>(row.size())
+        );
+
+        if (!file) {
+            return false;
+        }
+    }
+
+    return static_cast<bool>(file);
 }
