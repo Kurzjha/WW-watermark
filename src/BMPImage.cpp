@@ -329,3 +329,51 @@ bool BMPImage::Save(const std::string& filename) const {
 
     return static_cast<bool>(file);
 }
+
+int BMPImage::GetWidth() const {
+    return width_;
+}
+
+int BMPImage::GetHeight() const {
+    return height_;
+}
+
+int BMPImage::GetBitsPerPixel() const {
+    return bits_per_pixel_;
+}
+
+std::vector<BMPImage::Pixel>& BMPImage::GetPixels() {
+    return pixels_;
+}
+
+const std::vector<BMPImage::Pixel>& BMPImage::GetPixels() const {
+    return pixels_;
+}
+
+BMPImage::Pixel BMPImage::GetPixel(int x, int y) const {
+    if (x < 0 || y < 0 || x >= width_ || y >= height_) {
+        return Pixel{};
+    }
+
+    const std::size_t index =
+        static_cast<std::size_t>(y) *
+        static_cast<std::size_t>(width_) +
+        static_cast<std::size_t>(x);
+
+    return pixels_[index];
+}
+
+bool BMPImage::SetPixel(int x, int y, const Pixel& pixel) {
+    if (x < 0 || y < 0 || x >= width_ || y >= height_) {
+        return false;
+    }
+
+    const std::size_t index =
+        static_cast<std::size_t>(y) *
+        static_cast<std::size_t>(width_) +
+        static_cast<std::size_t>(x);
+
+    pixels_[index] = pixel;
+
+    return true;
+}
