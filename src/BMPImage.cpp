@@ -86,6 +86,8 @@ bool BMPImage::Load(const std::string& filename) {
         return false;
     }
 
+    // Read the BMP headers explicitly as little-endian values; this avoids
+    // relying on compiler-specific structure packing.
     const std::uint32_t pixel_offset = ReadUint32(header.data() + 10);
     const std::uint32_t info_header_size = ReadUint32(header.data() + 14);
 
@@ -176,6 +178,7 @@ bool BMPImage::Load(const std::string& filename) {
             return false;
         }
 
+        // Positive BMP heights are stored bottom-up; negative heights are top-down.
         const std::uint64_t destination_y = image_height > 0
             ? height - 1 - y
             : y;
@@ -243,6 +246,7 @@ bool BMPImage::Save(const std::string& filename) const {
     const std::uint32_t file_size =
         static_cast<std::uint32_t>(kHeaderSize + pixel_data_size);
 
+    // Emit a 14-byte BITMAPFILEHEADER followed by a 40-byte BITMAPINFOHEADER.
     std::array<std::uint8_t, kHeaderSize> header{};
 
     header[0] = 'B';
@@ -285,6 +289,7 @@ bool BMPImage::Save(const std::string& filename) const {
     );
 
     for (std::uint64_t y = 0; y < height; ++y) {
+        // BMP output is bottom-up. The zero-filled row also supplies padding bytes.
         const std::uint64_t source_y = height - 1 - y;
 
         for (std::uint64_t x = 0; x < width; ++x) {
